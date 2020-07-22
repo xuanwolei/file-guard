@@ -2,7 +2,7 @@
  * @Author: ybc
  * @Date: 2020-06-29 19:26:05
  * @LastEditors: ybc
- * @LastEditTime: 2020-07-20 15:35:27
+ * @LastEditTime: 2020-07-22 15:22:06
  * @Description: file content
  */
 
@@ -13,5 +13,6 @@ import (
 )
 
 func main() {
+
 	services.LoadSections()
 }
