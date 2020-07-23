@@ -2,7 +2,7 @@
  * @Author: ybc
  * @Date: 2020-06-29 19:30:45
  * @LastEditors: ybc
- * @LastEditTime: 2020-07-22 19:51:39
+ * @LastEditTime: 2020-07-23 20:20:10
  * @Description: file content
  */
 
@@ -24,27 +24,39 @@ var Exit = make(chan int)
 var Wait sync.WaitGroup
 
 type Guard struct {
-	Section *ini.Section
-	Config  *Config
-	Files   []*FileInfo
+	Section   *ini.Section
+	Config    *Config
+	Files     []*FileInfo
+	MatchFunc FilterFunc
 }
 
 type Config struct {
 	LogFile     string
 	LogDriver   string
+	MatchPreg   string
 	FilterPreg  string
 	NoticeToken string
 	NoticeLevel string
 }
 
 type NoticeContent struct {
-	Message string
-	Guard   *Guard
+	Path  string
+	Line  *tail.Line
+	Guard *Guard
 }
+
+type FilterFunc func(pattern string, text string) bool
+
+const (
+	LOG_DRIVER_ERROR  string = "error"
+	LOG_DRIVER_CUSTOM string = "custom"
+	DEFAULT_SECTION   string = "DEFAULT"
+)
 
 var (
 	DEFAULT_CONFIG map[string]string = map[string]string{
-		"log_driver":  "laravel",
+		"log_driver":  LOG_DRIVER_ERROR,
+		"match_preg":  "(?i)error",
 		"filter_preg": "",
 		"NoticeLevel": "1",
 	}
@@ -87,15 +99,17 @@ func LoadSections() {
 			Config: &Config{
 				LogFile:     config["log_file"],
 				LogDriver:   config["log_driver"],
+				MatchPreg:   config["match_preg"],
 				FilterPreg:  config["filter_preg"],
 				NoticeToken: config["notice_token"],
 				NoticeLevel: config["notice_level"],
 			},
+			MatchFunc: MatchString,
 		}
 		go guard.Run()
 	}
 
-	go handleNotice()
+	go HandleNotice()
 
 	<-Exit
 }
@@ -111,15 +125,6 @@ func StringMapSetDefaultVal(hash map[string]string, defaultHash map[string]strin
 	}
 
 	return hash
-}
-
-func handleNotice() {
-	for {
-		select {
-		case notice := <-NoticeChan:
-			fmt.Println("receive:", notice)
-		}
-	}
 }
 
 func (this *Guard) Run() {
@@ -148,14 +153,11 @@ func (this *Guard) Run() {
 	}
 
 	this.Files = files
-	this.filter()
-	NoticeChan <- &NoticeContent{
-		Guard:   this,
-		Message: "test",
-	}
+	this.listen()
+
 }
 
-func (this *Guard) filter() {
+func (this *Guard) listen() {
 	for _, f := range this.Files {
 		go this.tail(f.Path)
 	}
@@ -182,4 +184,19 @@ func (this *Guard) tail(path string) {
 
 func (this *Guard) handle(path string, line *tail.Line) {
 	fmt.Println("文件：", path, "变化：", line.Text)
+	if !this.MatchFunc(this.Config.MatchPreg, line.Text) {
+		log.Info("未匹配", line.Text)
+		return
+	}
+	if this.Config.FilterPreg != "" && this.MatchFunc(this.Config.FilterPreg, line.Text) {
+		log.Info("已过滤", line.Text)
+		return
+	}
+	//发送通知
+	NoticeChan <- &NoticeContent{
+		Line:  line,
+		Guard: this,
+		Path:  path,
+	}
+	return
 }
