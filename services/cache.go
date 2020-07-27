@@ -2,7 +2,7 @@
  * @Author: ybc
  * @Date: 2020-07-24 10:53:30
  * @LastEditors: ybc
- * @LastEditTime: 2020-07-24 17:50:11
+ * @LastEditTime: 2020-07-27 20:12:35
  * @Description: file content
  */
 package services
@@ -85,6 +85,36 @@ func (this *XwTable) Incrby(key string, num int64) int64 {
 		Type: STRING_INT,
 	})
 	return this.StringInt[key]
+}
+
+func (this *XwTable) SetExString(key string, expire int64, val string) bool {
+	this.Lock.Lock()
+	defer this.Lock.Unlock()
+	if this.KeyIsExpire(key) {
+		this.resetStrings(key)
+	}
+	this.Strings[key] = val
+	this.renewValue(key, &stringMapArgs{
+		Type:   STRINGS,
+		Expire: expire,
+	})
+
+	return true
+}
+
+func (this *XwTable) SetExInt(key string, expire int64, val int64) bool {
+	this.Lock.Lock()
+	defer this.Lock.Unlock()
+	if this.KeyIsExpire(key) {
+		this.resetStringInt(key)
+	}
+	this.StringInt[key] = val
+	this.renewValue(key, &stringMapArgs{
+		Type:   STRING_INT,
+		Expire: expire,
+	})
+
+	return true
 }
 
 func (this *XwTable) Expire(key string, expire int64) error {

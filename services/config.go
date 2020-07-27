@@ -2,7 +2,7 @@
  * @Author: ybc
  * @Date: 2020-06-29 19:30:45
  * @LastEditors: ybc
- * @LastEditTime: 2020-07-23 20:20:10
+ * @LastEditTime: 2020-07-27 20:21:53
  * @Description: file content
  */
 
@@ -55,10 +55,10 @@ const (
 
 var (
 	DEFAULT_CONFIG map[string]string = map[string]string{
-		"log_driver":  LOG_DRIVER_ERROR,
-		"match_preg":  "(?i)error",
-		"filter_preg": "",
-		"NoticeLevel": "1",
+		"log_driver":   LOG_DRIVER_ERROR,
+		"match_preg":   "(?i)error",
+		"filter_preg":  "",
+		"notice_level": "1",
 	}
 )
 
@@ -183,7 +183,6 @@ func (this *Guard) tail(path string) {
 }
 
 func (this *Guard) handle(path string, line *tail.Line) {
-	fmt.Println("文件：", path, "变化：", line.Text)
 	if !this.MatchFunc(this.Config.MatchPreg, line.Text) {
 		log.Info("未匹配", line.Text)
 		return
