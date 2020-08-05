@@ -13,5 +13,5 @@ require (
 	golang.org/x/time v0.0.0-20200630173020-3af7569d3a1e // indirect
 	gopkg.in/fsnotify.v1 v1.4.7 // indirect
 	gopkg.in/ini.v1 v1.57.0
-	gopkg.in/tomb.v1 v1.0.0-20141024135613-dd632973f1e7 // indirect
+	gopkg.in/tomb.v1 v1.0.0-20141024135613-dd632973f1e7
 )

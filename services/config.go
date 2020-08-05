@@ -2,7 +2,7 @@
  * @Author: ybc
  * @Date: 2020-06-29 19:30:45
  * @LastEditors: ybc
- * @LastEditTime: 2020-07-27 20:21:53
+ * @LastEditTime: 2020-08-05 20:36:26
  * @Description: file content
  */
 
@@ -28,6 +28,7 @@ type Guard struct {
 	Config    *Config
 	Files     []*FileInfo
 	MatchFunc FilterFunc
+	Tails     []*tail.Tail
 }
 
 type Config struct {
@@ -60,6 +61,7 @@ var (
 		"filter_preg":  "",
 		"notice_level": "1",
 	}
+	Guards []*Guard
 )
 
 func init() {
@@ -73,6 +75,19 @@ func init() {
 	// 	fmt.Println("not nil")
 	// }
 	// fmt.Println(s.Key("a").String())
+}
+
+func Reload() {
+	for _, guard := range Guards {
+		if len(guard.Tails) < 1 {
+			continue
+		}
+		for _, tail := range guard.Tails {
+			tail.Stop()
+		}
+	}
+	Guards = Guards[0:0]
+	LoadSections()
 }
 
 func LoadConfig(configFile string) (*ini.File, error) {
@@ -106,11 +121,15 @@ func LoadSections() {
 			},
 			MatchFunc: MatchString,
 		}
+		Guards = append(Guards, guard)
 		go guard.Run()
 	}
+	return
+}
 
+func Listen() {
+	LoadSections()
 	go HandleNotice()
-
 	<-Exit
 }
 
@@ -154,7 +173,6 @@ func (this *Guard) Run() {
 
 	this.Files = files
 	this.listen()
-
 }
 
 func (this *Guard) listen() {
@@ -172,6 +190,7 @@ func (this *Guard) tail(path string) {
 		Poll:      true,
 	}
 	t, err := tail.TailFile(path, config)
+	this.Tails = append(this.Tails, t)
 	if err != nil {
 		log.Error(err.Error())
 		return
