@@ -2,15 +2,16 @@
  * @Author: ybc
  * @Date: 2020-06-29 19:30:45
  * @LastEditors: ybc
- * @LastEditTime: 2020-08-05 20:36:26
+ * @LastEditTime: 2020-08-06 20:27:11
  * @Description: file content
  */
 
 package services
 
 import (
-	"fmt"
 	"sync"
+
+	"time"
 
 	"github.com/hpcloud/tail"
 	log "github.com/sirupsen/logrus"
@@ -32,12 +33,13 @@ type Guard struct {
 }
 
 type Config struct {
-	LogFile     string
-	LogDriver   string
-	MatchPreg   string
-	FilterPreg  string
-	NoticeToken string
-	NoticeLevel string
+	LogFile        string
+	LogDriver      string
+	MatchPreg      string
+	FilterPreg     string
+	NoticeToken    string
+	NoticeLevel    string
+	LogCheckLength string
 }
 
 type NoticeContent struct {
@@ -56,10 +58,11 @@ const (
 
 var (
 	DEFAULT_CONFIG map[string]string = map[string]string{
-		"log_driver":   LOG_DRIVER_ERROR,
-		"match_preg":   "(?i)error",
-		"filter_preg":  "",
-		"notice_level": "1",
+		"log_driver":       LOG_DRIVER_ERROR,
+		"match_preg":       "(?i)error",
+		"filter_preg":      "",
+		"notice_level":     "5",
+		"log_check_length": "30",
 	}
 	Guards []*Guard
 )
@@ -70,14 +73,10 @@ func init() {
 		panic(err)
 	}
 	AppConfig = conf
-	// s := conf.Section("dev")
-	// if s == nil{
-	// 	fmt.Println("not nil")
-	// }
-	// fmt.Println(s.Key("a").String())
 }
 
 func Reload() {
+	log.Info("guard restart")
 	for _, guard := range Guards {
 		if len(guard.Tails) < 1 {
 			continue
@@ -87,6 +86,7 @@ func Reload() {
 		}
 	}
 	Guards = Guards[0:0]
+
 	LoadSections()
 }
 
@@ -112,12 +112,13 @@ func LoadSections() {
 		guard := &Guard{
 			Section: section,
 			Config: &Config{
-				LogFile:     config["log_file"],
-				LogDriver:   config["log_driver"],
-				MatchPreg:   config["match_preg"],
-				FilterPreg:  config["filter_preg"],
-				NoticeToken: config["notice_token"],
-				NoticeLevel: config["notice_level"],
+				LogFile:        config["log_file"],
+				LogDriver:      config["log_driver"],
+				MatchPreg:      config["match_preg"],
+				FilterPreg:     config["filter_preg"],
+				NoticeToken:    config["notice_token"],
+				NoticeLevel:    config["notice_level"],
+				LogCheckLength: config["log_check_length"],
 			},
 			MatchFunc: MatchString,
 		}
@@ -130,7 +131,20 @@ func LoadSections() {
 func Listen() {
 	LoadSections()
 	go HandleNotice()
+	go HandelTick()
+
 	<-Exit
+}
+
+func HandelTick() {
+	t1 := time.Tick(3600 * time.Second)
+	for {
+		select {
+		case <-t1:
+			log.Info("tick run")
+			Reload()
+		}
+	}
 }
 
 func StringMapSetDefaultVal(hash map[string]string, defaultHash map[string]string) map[string]string {
@@ -147,7 +161,6 @@ func StringMapSetDefaultVal(hash map[string]string, defaultHash map[string]strin
 }
 
 func (this *Guard) Run() {
-	fmt.Println("log_file", this.Config.LogFile)
 	file, err := PathExists(this.Config.LogFile)
 	if err != nil {
 		log.Error("path:", this.Config.LogFile, err.Error())
@@ -203,14 +216,14 @@ func (this *Guard) tail(path string) {
 
 func (this *Guard) handle(path string, line *tail.Line) {
 	if !this.MatchFunc(this.Config.MatchPreg, line.Text) {
-		log.Info("未匹配", line.Text)
+		log.Debug("未匹配", line.Text)
 		return
 	}
 	if this.Config.FilterPreg != "" && this.MatchFunc(this.Config.FilterPreg, line.Text) {
-		log.Info("已过滤", line.Text)
+		log.Debug("已过滤", line.Text)
 		return
 	}
-	//发送通知
+	//send notice
 	NoticeChan <- &NoticeContent{
 		Line:  line,
 		Guard: this,

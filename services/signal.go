@@ -2,7 +2,7 @@
  * @Author: ybc
  * @Date: 2020-07-22 15:13:29
  * @LastEditors: ybc
- * @LastEditTime: 2020-07-22 15:15:48
+ * @LastEditTime: 2020-08-06 20:11:46
  * @Description: file content
  */
 
@@ -18,13 +18,16 @@ import (
 var sig chan os.Signal
 var notifySignals []os.Signal
 
+const (
+	SIGUSR1 = syscall.Signal(0x10)
+)
+
 func init() {
 	sig = make(chan os.Signal)
-	notifySignals = append(notifySignals, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
+	notifySignals = append(notifySignals, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT, SIGUSR1)
 	signal.Notify(sig, notifySignals...)
 }
 
-// 捕获系统信号
 func handleSignals() {
 	capturedSig := <-sig
 	fmt.Println(fmt.Sprintf("Received SIG. [PID:%d, SIG:%v]", syscall.Getpid(), capturedSig))
@@ -35,5 +38,7 @@ func handleSignals() {
 	case syscall.SIGTERM:
 		close(Exit)
 	case syscall.SIGQUIT:
+	case SIGUSR1:
+		Reload()
 	}
 }

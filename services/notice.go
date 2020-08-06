@@ -2,7 +2,7 @@
  * @Author: ybc
  * @Date: 2020-07-23 16:46:50
  * @LastEditors: ybc
- * @LastEditTime: 2020-07-27 20:18:10
+ * @LastEditTime: 2020-08-06 20:10:36
  * @Description: file content
  */
 
@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	log "github.com/sirupsen/logrus"
+	"strconv"
 )
 
 var (
@@ -19,17 +20,42 @@ var (
 		"1": &NoticeRule{
 			IntervalTime: 10,
 			LimitTime:    3600,
-			LimitNum:     60,
+			LimitNum:     360,
 		},
 		"2": &NoticeRule{
-			IntervalTime: 30,
+			IntervalTime: 60,
 			LimitTime:    3600,
 			LimitNum:     60,
 		},
 		"3": &NoticeRule{
-			IntervalTime: 60,
+			IntervalTime: 600,
 			LimitTime:    3600,
-			LimitNum:     60,
+			LimitNum:     5,
+		},
+		"4": &NoticeRule{
+			IntervalTime: 1800,
+			LimitTime:    86400,
+			LimitNum:     40,
+		},
+		"5": &NoticeRule{
+			IntervalTime: 3600,
+			LimitTime:    86400,
+			LimitNum:     24,
+		},
+		"6": &NoticeRule{
+			IntervalTime: 7200,
+			LimitTime:    86400,
+			LimitNum:     10,
+		},
+		"7": &NoticeRule{
+			IntervalTime: 7200 * 2,
+			LimitTime:    86400,
+			LimitNum:     5,
+		},
+		"8": &NoticeRule{
+			IntervalTime: 86400,
+			LimitTime:    86400,
+			LimitNum:     1,
 		},
 	}
 	statistic map[string]int
@@ -103,8 +129,9 @@ func (this *NoticeContent) report() {
 func (this *NoticeContent) parseKey(val string, isConnetText bool) string {
 	text := ""
 	length := len(this.Line.Text)
-	if length > 30 {
-		length = 30
+	checkLength, _ := strconv.Atoi(this.Guard.Config.LogCheckLength)
+	if length > checkLength {
+		length = checkLength
 	}
 	if isConnetText {
 		text = this.Line.Text[0:length]

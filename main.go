@@ -10,14 +10,9 @@ package main
 
 import (
 	"file-guard/services"
-	"time"
 )
 
 func main() {
-	go func() {
-		time.Sleep(time.Second * 10)
-		services.Reload()
-	}()
 
 	services.Listen()
 }
