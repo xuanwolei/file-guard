@@ -2,7 +2,7 @@
  * @Author: ybc
  * @Date: 2020-06-29 19:30:45
  * @LastEditors: ybc
- * @LastEditTime: 2020-08-06 20:27:11
+ * @LastEditTime: 2020-08-07 14:54:14
  * @Description: file content
  */
 
@@ -13,6 +13,7 @@ import (
 
 	"time"
 
+	"flag"
 	"github.com/hpcloud/tail"
 	log "github.com/sirupsen/logrus"
 	"gopkg.in/ini.v1"
@@ -64,14 +65,16 @@ var (
 		"notice_level":     "5",
 		"log_check_length": "30",
 	}
-	Guards []*Guard
+	Guards     []*Guard
+	ConfigFile *string = flag.String("c", "./conf/app.ini", "Ini file path")
 )
 
 func init() {
-	conf, err := LoadConfig("./conf/app.ini")
+	flag.Parse()
+	conf, err := LoadConfig(*ConfigFile)
 	if err != nil {
 		panic(err)
-	}
+	} 
 	AppConfig = conf
 }
 
