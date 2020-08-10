@@ -2,7 +2,7 @@
  * @Author: ybc
  * @Date: 2020-06-29 19:30:45
  * @LastEditors: ybc
- * @LastEditTime: 2020-08-07 14:54:14
+ * @LastEditTime: 2020-08-10 20:55:25
  * @Description: file content
  */
 
@@ -11,12 +11,13 @@ package services
 import (
 	"sync"
 
-	"time"
-
 	"flag"
 	"github.com/hpcloud/tail"
 	log "github.com/sirupsen/logrus"
 	"gopkg.in/ini.v1"
+	"os"
+	"strings"
+	"time"
 )
 
 var AppConfig *ini.File
@@ -66,15 +67,19 @@ var (
 		"log_check_length": "30",
 	}
 	Guards     []*Guard
-	ConfigFile *string = flag.String("c", "./conf/app.ini", "Ini file path")
+	ConfigFile *string = flag.String("c", "../conf/app.ini", "Ini file path")
 )
 
 func init() {
 	flag.Parse()
+	//输出到标准输出（默认是标准错误）
+	log.SetOutput(os.Stdout)
+	log.SetFormatter(&log.JSONFormatter{})
 	conf, err := LoadConfig(*ConfigFile)
 	if err != nil {
-		panic(err)
-	} 
+		log.Error(err.Error())
+		os.Exit(1)
+	}
 	AppConfig = conf
 }
 
@@ -164,19 +169,18 @@ func StringMapSetDefaultVal(hash map[string]string, defaultHash map[string]strin
 }
 
 func (this *Guard) Run() {
-	file, err := PathExists(this.Config.LogFile)
+	file, err := PathExists(this.pasePath(this.Config.LogFile))
 	if err != nil {
 		log.Error("path:", this.Config.LogFile, err.Error())
 		return
 	}
 
 	var files []*FileInfo
-	if file == nil {
+	if file.IsDir() {
 		var readFile = make(chan *FileInfo)
 		FindFiles(this.Config.LogFile, readFile, true)
 		log.Debug("start:", this.Config.LogFile)
 		for f := range readFile {
-			log.Info("file:", f.Path)
 			files = append(files, f)
 		}
 		log.Debug("finish")
@@ -191,6 +195,16 @@ func (this *Guard) Run() {
 	this.listen()
 }
 
+//解析文件，兼容*通配符
+func (this *Guard) pasePath(path string) string {
+
+	dir, name := ParseFilePath(path)
+	if strings.Contains(name, "*") {
+		return dir
+	}
+	return path
+}
+
 func (this *Guard) listen() {
 	for _, f := range this.Files {
 		go this.tail(f.Path)
@@ -198,12 +212,16 @@ func (this *Guard) listen() {
 }
 
 func (this *Guard) tail(path string) {
+	logger := log.New()
+	logger.SetOutput(os.Stdout)
+	logger.SetFormatter(&log.JSONFormatter{})
 	config := tail.Config{
 		ReOpen:    true,                                 // 重新打开
 		Follow:    true,                                 // 是否跟随
 		Location:  &tail.SeekInfo{Offset: 0, Whence: 2}, // 从文件的哪个地方开始读
 		MustExist: false,                                // 文件不存在不报错
 		Poll:      true,
+		Logger:    logger,
 	}
 	t, err := tail.TailFile(path, config)
 	this.Tails = append(this.Tails, t)

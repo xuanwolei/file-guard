@@ -2,7 +2,7 @@
  * @Author: ybc
  * @Date: 2020-07-23 16:46:50
  * @LastEditors: ybc
- * @LastEditTime: 2020-08-06 20:10:36
+ * @LastEditTime: 2020-08-10 19:37:44
  * @Description: file content
  */
 
@@ -123,6 +123,7 @@ func (this *NoticeContent) report() {
 	if err := instance.Markdown(title, content).Send(false); err != nil {
 		log.Error("notice fail:", err.Error(), "title:", title, ",content:", content)
 	}
+	log.Info("project:12312313", this.Guard.Config.NoticeToken)
 	return
 }
 

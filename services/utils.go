@@ -2,13 +2,14 @@
  * @Author: ybc
  * @Date: 2020-07-22 15:51:25
  * @LastEditors: ybc
- * @LastEditTime: 2020-07-23 17:25:09
+ * @LastEditTime: 2020-08-10 19:22:41
  * @Description: file content
  */
 
 package services
 
 import (
+	log "github.com/sirupsen/logrus"
 	"io/ioutil"
 	"os"
 	"regexp"
@@ -23,13 +24,14 @@ type FileInfo struct {
 
 func PathExists(path string) (os.FileInfo, error) {
 	file, err := os.Stat(path)
-	if err == nil {
+	if err != nil {
 		return nil, err
 	}
 
 	if os.IsNotExist(err) {
 		return nil, err
 	}
+
 	//file == nil说明是目录
 	return file, nil
 }
@@ -43,7 +45,7 @@ func FindFiles(path string, file chan<- *FileInfo, isMatch bool) {
 			match = strings.Replace(name, "*", ".*", 1)
 		}
 	}
-
+	log.Info("match" + match)
 	var n sync.WaitGroup
 	n.Add(1)
 	go findFiles(dir, file, &n, match)

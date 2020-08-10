@@ -2,12 +2,13 @@
  * @Author: ybc
  * @Date: 2020-07-24 10:53:30
  * @LastEditors: ybc
- * @LastEditTime: 2020-07-27 20:12:35
+ * @LastEditTime: 2020-08-10 18:10:25
  * @Description: file content
  */
 package services
 
 import (
+	"errors"
 	"sync"
 	"time"
 )
@@ -49,7 +50,7 @@ func NewXwTable() *XwTable {
 		StringInt: make(map[string]int64),
 		StringMap: make(map[string]*stringValue),
 		Config: &XwTableConfig{
-			ClearIntervalTime: 1,
+			ClearIntervalTime: 10,
 		},
 	}
 	table.Tick = time.Tick(table.Config.ClearIntervalTime * time.Second)
@@ -58,6 +59,7 @@ func NewXwTable() *XwTable {
 	return table
 }
 
+//定时清除过期的key
 func (this *XwTable) HandleTick() {
 	for {
 		select {
@@ -65,13 +67,30 @@ func (this *XwTable) HandleTick() {
 			var num int
 			for k, _ := range this.StringMap {
 				if this.KeyIsExpire(k) {
-					this.Lock.Lock()
-					this.Lock.Unlock()
+					this.DelKey(k)
 					num++
 				}
 			}
 		}
 	}
+}
+
+//删除key
+func (this *XwTable) DelKey(key string) error {
+	this.Lock.Lock()
+	defer this.Lock.Unlock()
+	if this.StringMap[key] == nil {
+		return errors.New("key:" + key + " not fund")
+	}
+	switch this.StringMap[key].Type {
+	case STRING_INT:
+		delete(this.StringInt, key)
+	case STRINGS:
+		delete(this.Strings, key)
+
+	}
+	delete(this.StringMap, key)
+	return nil
 }
 
 func (this *XwTable) Incrby(key string, num int64) int64 {

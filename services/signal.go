@@ -2,7 +2,7 @@
  * @Author: ybc
  * @Date: 2020-07-22 15:13:29
  * @LastEditors: ybc
- * @LastEditTime: 2020-08-06 20:11:46
+ * @LastEditTime: 2020-08-10 20:55:46
  * @Description: file content
  */
 
@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"runtime"
 	"syscall"
 )
 
@@ -23,22 +24,22 @@ const (
 )
 
 func init() {
+	if runtime.GOOS == "windows" {
+		return
+	}
 	sig = make(chan os.Signal)
-	notifySignals = append(notifySignals, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT, SIGUSR1)
+	notifySignals = append(notifySignals, syscall.SIGTERM, syscall.SIGUSR1)
 	signal.Notify(sig, notifySignals...)
+	go handleSignals()
 }
 
 func handleSignals() {
 	capturedSig := <-sig
 	fmt.Println(fmt.Sprintf("Received SIG. [PID:%d, SIG:%v]", syscall.Getpid(), capturedSig))
 	switch capturedSig {
-	case syscall.SIGHUP:
-	case syscall.SIGINT:
-		fallthrough
 	case syscall.SIGTERM:
 		close(Exit)
-	case syscall.SIGQUIT:
-	case SIGUSR1:
+	case syscall.SIGUSR1:
 		Reload()
 	}
 }

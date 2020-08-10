@@ -2,7 +2,7 @@
  * @Author: ybc
  * @Date: 2020-07-23 17:42:15
  * @LastEditors: ybc
- * @LastEditTime: 2020-07-23 20:16:44
+ * @LastEditTime: 2020-08-10 19:46:39
  * @Description: file content
  */
 package services
@@ -10,6 +10,7 @@ package services
 import (
 	"encoding/json"
 	"errors"
+
 	"github.com/xuanwolei/goutils"
 )
 
@@ -24,8 +25,8 @@ type TalkRobot struct {
 }
 
 type TalkResponse struct {
-	ErrorCode int
-	ErrMsg    string
+	ErrCode int
+	ErrMsg  string
 }
 
 func NewTalkRobot(token string) *TalkRobot {
@@ -76,7 +77,7 @@ func (this *TalkRobot) Send(isAtAll bool) error {
 	}
 	var response TalkResponse
 	json.Unmarshal(body, &response)
-	if response.ErrorCode != 0 {
+	if response.ErrCode != 0 {
 		return errors.New(response.ErrMsg)
 	}
 
