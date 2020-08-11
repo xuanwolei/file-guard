@@ -1,3 +1,4 @@
+||githubusercontent.com
 # file-guard
 实时监控文件变化，匹配符合预期的数据并通知。
 
