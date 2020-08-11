@@ -2,7 +2,7 @@
  * @Author: ybc
  * @Date: 2020-07-22 15:51:25
  * @LastEditors: ybc
- * @LastEditTime: 2020-08-11 16:52:12
+ * @LastEditTime: 2020-08-11 20:12:43
  * @Description: file content
  */
 
@@ -37,19 +37,19 @@ func PathExists(path string) (os.FileInfo, error) {
 	return file, nil
 }
 
-func FindFiles(path string, file chan<- *FileInfo, isMatch bool) {
+func FindFiles(path string, file chan<- *FileInfo, isRecursive bool, isMatch bool) {
 	dir, name := ParseFilePath(path)
 	var match string = ""
 	if isMatch && strings.Contains(name, "*") {
 		firstIndex := strings.Index(name, "*")
-		if firstIndex == 0 {
+		if firstIndex != -1 {
 			match = "^" + strings.Replace(name, "*", ".*", 1)
 		}
 	}
-	log.Info("match" + match)
+	log.Info("match:" + match)
 	var n sync.WaitGroup
 	n.Add(1)
-	go findFiles(dir, file, &n, match)
+	go findFiles(dir, file, &n, isRecursive, match)
 	go func() {
 		n.Wait()
 		close(file)
@@ -58,17 +58,17 @@ func FindFiles(path string, file chan<- *FileInfo, isMatch bool) {
 	return
 }
 
-func findFiles(path string, file chan<- *FileInfo, n *sync.WaitGroup, match string) error {
+func findFiles(path string, file chan<- *FileInfo, n *sync.WaitGroup, isRecursive bool, match string) error {
 	defer n.Done()
 	entries, err := ioutil.ReadDir(path)
 	if err != nil {
 		return err
 	}
 	for _, ent := range entries {
-		if ent.IsDir() {
+		if ent.IsDir() && isRecursive {
 			newPath := path + "/" + ent.Name()
 			n.Add(1)
-			if err := findFiles(newPath, file, n, match); err != nil {
+			if err := findFiles(newPath, file, n, isRecursive, match); err != nil {
 				n.Done()
 				return err
 			}

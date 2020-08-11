@@ -2,7 +2,7 @@
  * @Author: ybc
  * @Date: 2020-06-29 19:30:45
  * @LastEditors: ybc
- * @LastEditTime: 2020-08-11 19:48:36
+ * @LastEditTime: 2020-08-11 20:13:53
  * @Description: file content
  */
 
@@ -37,15 +37,16 @@ type Guard struct {
 }
 
 type Config struct {
-	LogFile        string
-	LogDriver      string
-	MatchPreg      string
-	FilterPreg     string
-	NoticeToken    string
-	NoticeMobile   string
-	NoticeLevel    string
-	LogCheckLength string
-	LogSkipLength  string
+	LogFile          string
+	LogDriver        string
+	MatchPreg        string
+	FilterPreg       string
+	NoticeToken      string
+	NoticeMobile     string
+	NoticeLevel      string
+	LogCheckLength   string
+	LogSkipLength    string
+	LogRecursiveFind bool
 }
 
 type NoticeContent struct {
@@ -64,13 +65,14 @@ const (
 
 var (
 	DEFAULT_CONFIG map[string]string = map[string]string{
-		"log_driver":       LOG_DRIVER_ERROR,
-		"match_preg":       "(?i)error",
-		"filter_preg":      "",
-		"notice_level":     "5",
-		"log_check_length": "30",
-		"log_skip_length":  "0",
-		"NoticeMobile":     "",
+		"log_driver":         LOG_DRIVER_ERROR,
+		"match_preg":         "(?i)error",
+		"filter_preg":        "",
+		"notice_level":       "5",
+		"log_check_length":   "30",
+		"log_skip_length":    "0",
+		"notice_mobile":      "",
+		"log_recursive_find": "",
 	}
 	Guards     []*Guard
 	ConfigFile *string = flag.String("c", "", "set ini file path")
@@ -153,15 +155,16 @@ func LoadSections() {
 		guard := &Guard{
 			Section: section,
 			Config: &Config{
-				LogFile:        config["log_file"],
-				LogDriver:      config["log_driver"],
-				MatchPreg:      config["match_preg"],
-				FilterPreg:     config["filter_preg"],
-				NoticeToken:    config["notice_token"],
-				NoticeMobile:   config["notice_mobile"],
-				NoticeLevel:    config["notice_level"],
-				LogCheckLength: config["log_check_length"],
-				LogSkipLength:  config["log_skip_length"],
+				LogFile:          config["log_file"],
+				LogDriver:        config["log_driver"],
+				MatchPreg:        config["match_preg"],
+				FilterPreg:       config["filter_preg"],
+				NoticeToken:      config["notice_token"],
+				NoticeMobile:     config["notice_mobile"],
+				NoticeLevel:      config["notice_level"],
+				LogCheckLength:   config["log_check_length"],
+				LogSkipLength:    config["log_skip_length"],
+				LogRecursiveFind: config["log_recursive_find"] == "1",
 			},
 			MatchFunc: MatchString,
 		}
@@ -201,7 +204,7 @@ func (this *Guard) Run() {
 	var files []*FileInfo
 	if file.IsDir() {
 		var readFile = make(chan *FileInfo)
-		FindFiles(this.Config.LogFile, readFile, true)
+		FindFiles(this.Config.LogFile, readFile, this.Config.LogRecursiveFind, true)
 		log.Debug("start:", this.Config.LogFile)
 		for f := range readFile {
 			files = append(files, f)
