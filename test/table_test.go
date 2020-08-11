@@ -2,26 +2,25 @@
  * @Author: ybc
  * @Date: 2020-07-24 16:20:53
  * @LastEditors: ybc
- * @LastEditTime: 2020-07-24 17:08:18
+ * @LastEditTime: 2020-08-11 16:50:35
  * @Description: file content
  */
 
-package main
+package word
 
 import (
 	"file-guard/services"
 	"fmt"
 	"sync"
-	"time"
+	"testing"
 )
 
-func main() {
+func TestTableIncrby(t *testing.T) {
 	var n sync.WaitGroup
 	c := make(chan int)
 	table := services.NewXwTable()
 	for i := 0; i < 10000; i++ {
 		n.Add(1)
-		time.Sleep(time.Second * 1)
 		go func(i int) {
 			n.Done()
 			v := table.Incrby("haha", 1)
@@ -39,5 +38,12 @@ func main() {
 	<-c
 
 	fmt.Println(table.GetInt("haha"))
+}
 
+func TestIp(t *testing.T) {
+	ip, err := services.GetLocalIp()
+	if err != nil {
+		t.Error("getLocalIp" + err.Error())
+	}
+	fmt.Println("ip:", ip)
 }

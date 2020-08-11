@@ -2,7 +2,7 @@
  * @Author: ybc
  * @Date: 2020-06-29 19:30:45
  * @LastEditors: ybc
- * @LastEditTime: 2020-08-10 20:55:25
+ * @LastEditTime: 2020-08-11 19:48:36
  * @Description: file content
  */
 
@@ -12,6 +12,7 @@ import (
 	"sync"
 
 	"flag"
+	"fmt"
 	"github.com/hpcloud/tail"
 	log "github.com/sirupsen/logrus"
 	"gopkg.in/ini.v1"
@@ -25,6 +26,7 @@ var AppConfig *ini.File
 var NoticeChan = make(chan *NoticeContent)
 var Exit = make(chan int)
 var Wait sync.WaitGroup
+var FlagOnce sync.Once
 
 type Guard struct {
 	Section   *ini.Section
@@ -40,8 +42,10 @@ type Config struct {
 	MatchPreg      string
 	FilterPreg     string
 	NoticeToken    string
+	NoticeMobile   string
 	NoticeLevel    string
 	LogCheckLength string
+	LogSkipLength  string
 }
 
 type NoticeContent struct {
@@ -65,25 +69,20 @@ var (
 		"filter_preg":      "",
 		"notice_level":     "5",
 		"log_check_length": "30",
+		"log_skip_length":  "0",
+		"NoticeMobile":     "",
 	}
 	Guards     []*Guard
-	ConfigFile *string = flag.String("c", "../conf/app.ini", "Ini file path")
+	ConfigFile *string = flag.String("c", "", "set ini file path")
 )
 
 func init() {
-	flag.Parse()
 	//输出到标准输出（默认是标准错误）
 	log.SetOutput(os.Stdout)
 	log.SetFormatter(&log.JSONFormatter{})
-	conf, err := LoadConfig(*ConfigFile)
-	if err != nil {
-		log.Error(err.Error())
-		os.Exit(1)
-	}
-	AppConfig = conf
 }
 
-func Reload() {
+func Reload(isReloadConfig bool) {
 	log.Info("guard restart")
 	for _, guard := range Guards {
 		if len(guard.Tails) < 1 {
@@ -94,17 +93,51 @@ func Reload() {
 		}
 	}
 	Guards = Guards[0:0]
-
+	if isReloadConfig {
+		InitConfig()
+	}
 	LoadSections()
 }
 
-func LoadConfig(configFile string) (*ini.File, error) {
-	conf, err := ini.Load(configFile)
-	if err != nil {
-		return nil, err
+func InitConfig() bool {
+	FlagOnce.Do(func() {
+		flag.Parse()
+	})
+	if !flagUsage() {
+		return false
 	}
+	conf, err := LoadConfig(*ConfigFile)
+	if err != nil {
+		log.Error(err.Error())
+		os.Exit(1)
+	}
+	AppConfig = conf
 
-	return conf, nil
+	return true
+}
+
+func flagUsage() bool {
+	if *ConfigFile != "" {
+		return true
+	}
+	fmt.Fprintf(os.Stdout, `file-guard version: 1.0.0
+Usage: file-guard [-c filename] 
+Options:
+
+`)
+	flag.PrintDefaults()
+	return false
+}
+
+func Listen() {
+	if !InitConfig() {
+		return
+	}
+	LoadSections()
+	go HandleNotice()
+	go HandelTick()
+
+	<-Exit
 }
 
 func LoadSections() {
@@ -125,8 +158,10 @@ func LoadSections() {
 				MatchPreg:      config["match_preg"],
 				FilterPreg:     config["filter_preg"],
 				NoticeToken:    config["notice_token"],
+				NoticeMobile:   config["notice_mobile"],
 				NoticeLevel:    config["notice_level"],
 				LogCheckLength: config["log_check_length"],
+				LogSkipLength:  config["log_skip_length"],
 			},
 			MatchFunc: MatchString,
 		}
@@ -136,12 +171,13 @@ func LoadSections() {
 	return
 }
 
-func Listen() {
-	LoadSections()
-	go HandleNotice()
-	go HandelTick()
+func LoadConfig(configFile string) (*ini.File, error) {
+	conf, err := ini.Load(configFile)
+	if err != nil {
+		return nil, err
+	}
 
-	<-Exit
+	return conf, nil
 }
 
 func HandelTick() {
@@ -149,23 +185,10 @@ func HandelTick() {
 	for {
 		select {
 		case <-t1:
-			log.Info("tick run")
-			Reload()
+			log.Info("tick check")
+			Reload(false)
 		}
 	}
-}
-
-func StringMapSetDefaultVal(hash map[string]string, defaultHash map[string]string) map[string]string {
-	for k, v := range defaultHash {
-		if hash[k] != "" {
-			continue
-		} else if v == "" {
-			hash[k] = DEFAULT_CONFIG[k]
-		}
-		hash[k] = v
-	}
-
-	return hash
 }
 
 func (this *Guard) Run() {
@@ -195,16 +218,6 @@ func (this *Guard) Run() {
 	this.listen()
 }
 
-//解析文件，兼容*通配符
-func (this *Guard) pasePath(path string) string {
-
-	dir, name := ParseFilePath(path)
-	if strings.Contains(name, "*") {
-		return dir
-	}
-	return path
-}
-
 func (this *Guard) listen() {
 	for _, f := range this.Files {
 		go this.tail(f.Path)
@@ -216,8 +229,8 @@ func (this *Guard) tail(path string) {
 	logger.SetOutput(os.Stdout)
 	logger.SetFormatter(&log.JSONFormatter{})
 	config := tail.Config{
-		ReOpen:    true,                                 // 重新打开
-		Follow:    true,                                 // 是否跟随
+		ReOpen:    true,
+		Follow:    true,
 		Location:  &tail.SeekInfo{Offset: 0, Whence: 2}, // 从文件的哪个地方开始读
 		MustExist: false,                                // 文件不存在不报错
 		Poll:      true,
@@ -237,11 +250,11 @@ func (this *Guard) tail(path string) {
 
 func (this *Guard) handle(path string, line *tail.Line) {
 	if !this.MatchFunc(this.Config.MatchPreg, line.Text) {
-		log.Debug("未匹配", line.Text)
+		log.Debug("unmatched", line.Text)
 		return
 	}
 	if this.Config.FilterPreg != "" && this.MatchFunc(this.Config.FilterPreg, line.Text) {
-		log.Debug("已过滤", line.Text)
+		log.Debug("filter", line.Text)
 		return
 	}
 	//send notice
@@ -251,4 +264,27 @@ func (this *Guard) handle(path string, line *tail.Line) {
 		Path:  path,
 	}
 	return
+}
+
+//解析文件，兼容*通配符
+func (this *Guard) pasePath(path string) string {
+
+	dir, name := ParseFilePath(path)
+	if strings.Contains(name, "*") {
+		return dir
+	}
+	return path
+}
+
+func StringMapSetDefaultVal(hash map[string]string, defaultHash map[string]string) map[string]string {
+	for k, v := range defaultHash {
+		if hash[k] != "" {
+			continue
+		} else if v == "" {
+			hash[k] = DEFAULT_CONFIG[k]
+		}
+		hash[k] = v
+	}
+
+	return hash
 }

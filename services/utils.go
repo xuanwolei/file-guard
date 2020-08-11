@@ -2,19 +2,21 @@
  * @Author: ybc
  * @Date: 2020-07-22 15:51:25
  * @LastEditors: ybc
- * @LastEditTime: 2020-08-10 19:22:41
+ * @LastEditTime: 2020-08-11 16:52:12
  * @Description: file content
  */
 
 package services
 
 import (
-	log "github.com/sirupsen/logrus"
 	"io/ioutil"
+	"net"
 	"os"
 	"regexp"
 	"strings"
 	"sync"
+
+	log "github.com/sirupsen/logrus"
 )
 
 type FileInfo struct {
@@ -32,7 +34,6 @@ func PathExists(path string) (os.FileInfo, error) {
 		return nil, err
 	}
 
-	//file == nil说明是目录
 	return file, nil
 }
 
@@ -42,7 +43,7 @@ func FindFiles(path string, file chan<- *FileInfo, isMatch bool) {
 	if isMatch && strings.Contains(name, "*") {
 		firstIndex := strings.Index(name, "*")
 		if firstIndex == 0 {
-			match = strings.Replace(name, "*", ".*", 1)
+			match = "^" + strings.Replace(name, "*", ".*", 1)
 		}
 	}
 	log.Info("match" + match)
@@ -86,6 +87,29 @@ func findFiles(path string, file chan<- *FileInfo, n *sync.WaitGroup, match stri
 	}
 
 	return nil
+}
+
+func GetLocalIp() (string, error) {
+	netInterfaces, err := net.Interfaces()
+	if err != nil {
+		return "", err
+	}
+
+	for i := 0; i < len(netInterfaces); i++ {
+		if (netInterfaces[i].Flags & net.FlagUp) != 0 {
+			addrs, _ := netInterfaces[i].Addrs()
+
+			for _, address := range addrs {
+				if ipnet, ok := address.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
+					if ipnet.IP.To4() != nil {
+						return ipnet.IP.String(), nil
+					}
+				}
+			}
+		}
+	}
+
+	return "", nil
 }
 
 func ParseFileName(path string) string {

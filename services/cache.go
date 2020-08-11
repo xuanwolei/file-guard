@@ -2,7 +2,7 @@
  * @Author: ybc
  * @Date: 2020-07-24 10:53:30
  * @LastEditors: ybc
- * @LastEditTime: 2020-08-10 18:10:25
+ * @LastEditTime: 2020-08-11 19:52:11
  * @Description: file content
  */
 package services
@@ -50,7 +50,7 @@ func NewXwTable() *XwTable {
 		StringInt: make(map[string]int64),
 		StringMap: make(map[string]*stringValue),
 		Config: &XwTableConfig{
-			ClearIntervalTime: 10,
+			ClearIntervalTime: 3600,
 		},
 	}
 	table.Tick = time.Tick(table.Config.ClearIntervalTime * time.Second)
@@ -75,7 +75,6 @@ func (this *XwTable) HandleTick() {
 	}
 }
 
-//删除key
 func (this *XwTable) DelKey(key string) error {
 	this.Lock.Lock()
 	defer this.Lock.Unlock()

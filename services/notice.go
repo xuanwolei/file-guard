@@ -2,7 +2,7 @@
  * @Author: ybc
  * @Date: 2020-07-23 16:46:50
  * @LastEditors: ybc
- * @LastEditTime: 2020-08-10 19:37:44
+ * @LastEditTime: 2020-08-11 19:32:08
  * @Description: file content
  */
 
@@ -60,6 +60,7 @@ var (
 	}
 	statistic map[string]int
 	table     *XwTable
+	localIp   string
 )
 
 type NoticeRule struct {
@@ -70,6 +71,7 @@ type NoticeRule struct {
 
 func init() {
 	table = NewXwTable()
+	localIp, _ = GetLocalIp()
 	return
 }
 
@@ -117,13 +119,22 @@ func (this *NoticeContent) report() {
 	instance := NewTalkRobot(this.Guard.Config.NoticeToken)
 	title := "项目：" + this.Guard.Section.Name()
 	content := "- 项目:" + this.Guard.Section.Name() + "\n"
+	content += "- IP :" + localIp + "\n"
 	content += "- 文件:" + this.Path + "\n"
 	content += "- 时间：" + this.Line.Time.Format("2006-01-02 15:04:05") + "\n"
-	content += "## 内容:\n```\n" + this.Line.Text + "\n```"
-	if err := instance.Markdown(title, content).Send(false); err != nil {
+	content += "## 内容:\n```\n" + this.Line.Text + "\n"
+
+	var atMobiles []string
+	if this.Guard.Config.NoticeMobile != "" {
+		atMobiles = append(atMobiles, this.Guard.Config.NoticeMobile)
+		content += "叮叮叮：@" + this.Guard.Config.NoticeMobile + "\n"
+	}
+	content += "```"
+	log.Info("atMobile", atMobiles)
+	if err := instance.Markdown(title, content).AtMobiles(atMobiles).Send(false); err != nil {
 		log.Error("notice fail:", err.Error(), "title:", title, ",content:", content)
 	}
-	log.Info("project:12312313", this.Guard.Config.NoticeToken)
+	log.Info("notice:", title)
 	return
 }
 
@@ -131,11 +142,16 @@ func (this *NoticeContent) parseKey(val string, isConnetText bool) string {
 	text := ""
 	length := len(this.Line.Text)
 	checkLength, _ := strconv.Atoi(this.Guard.Config.LogCheckLength)
+	skipLength, _ := strconv.Atoi(this.Guard.Config.LogSkipLength)
 	if length > checkLength {
 		length = checkLength
 	}
-	if isConnetText {
-		text = this.Line.Text[0:length]
+	if length < skipLength {
+		skipLength = 0
 	}
+	if isConnetText {
+		text = this.Line.Text[skipLength:length]
+	}
+	log.Info("text:", text)
 	return this.Guard.Section.Name() + val + text
 }

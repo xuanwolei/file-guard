@@ -2,7 +2,7 @@
  * @Author: ybc
  * @Date: 2020-07-22 15:13:29
  * @LastEditors: ybc
- * @LastEditTime: 2020-08-10 20:55:46
+ * @LastEditTime: 2020-08-11 19:53:21
  * @Description: file content
  */
 
@@ -40,6 +40,6 @@ func handleSignals() {
 	case syscall.SIGTERM:
 		close(Exit)
 	case syscall.SIGUSR1:
-		Reload()
+		Reload(true)
 	}
 }
