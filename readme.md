@@ -1,6 +1,5 @@
-||githubusercontent.com
 # file-guard
-实时监控文件变化，匹配符合预期的数据并通知。
+实时监控文件变化，匹配数据实时报警。
 
 ### 应用场景
 - 错误日志监控，实时捕捉系统错误
@@ -24,7 +23,7 @@ file-guard -c [配置文件]
 #发送 USR1信号
 kill -USR1 [PID]
 ```
-> 重新加载配置文件，重新扫描监控文件
+> 重新加载配置文件
 
 ### 通知级别
 
@@ -91,8 +90,10 @@ log_skip_length = 21
 - 内存：2G
 
 
-### 测试基准
-每10ms写入269字节大小数据到监控文件中。
+### 写入不触发报警日志
+
+#### 测试基准
+每5ms写入269字节数据到监控文件中，数据不触发报警。
 
 #### 测试脚本
 
@@ -102,24 +103,58 @@ log_skip_length = 21
 while true
 do
         echo "#0 /home/wwwroot/default/storyMarketing/app/Comps/Models/LuckDrawTrait.php(162): App\\Models\\LuckDraw->_addIntegralPrize(1, 446, Array)#0 /home/wwwroot/default/storyMarketing/app/Comps/Models/LuckDrawTrait.php(162): App\\Models\\LuckDraw->_addIntegralPrize(1, 446, Array)"\n >> /tmp/test.log
-        sleep 0.01
+        sleep 0.005
 done
 ```
 
-#### 监控
+#### 查看性能
 ```
-top - 21:05:55 up 35 days, 11:29,  5 users,  load average: 0.38, 0.16, 0.09
-Tasks: 199 total,   1 running, 198 sleeping,   0 stopped,   0 zombie
-%Cpu(s):  3.2 us,  8.1 sy,  0.0 ni, 88.7 id,  0.0 wa,  0.0 hi,  0.0 si,  0.0 st
-KiB Mem :  1882408 total,   608748 free,   461156 used,   812504 buff/cache
-KiB Swap:  2097148 total,  1782428 free,   314720 used.  1145480 avail Mem 
+[root@localhost ~]# top
+top - 13:47:36 up 37 days,  4:11,  3 users,  load average: 0.13, 0.08, 0.06
+Tasks: 196 total,   1 running, 195 sleeping,   0 stopped,   0 zombie
+%Cpu(s):  5.8 us, 13.2 sy,  0.0 ni, 80.8 id,  0.0 wa,  0.0 hi,  0.2 si,  0.0 st
+KiB Mem :  1882408 total,   348652 free,   696768 used,   836988 buff/cache
+KiB Swap:  2097148 total,  1799836 free,   297312 used.   881464 avail Mem 
 
   PID USER      PR  NI    VIRT    RES    SHR S  %CPU %MEM     TIME+ COMMAND                                                                                                                                                             
- 4533 root      20   0  113308   1536   1240 S   5.3  0.1   0:02.19 file_test.sh                                                                                                                                                        
-28585 root      20   0  109280   8968   3728 S   1.0  0.5   0:01.64 file-guard 
+ 6661 root      20   0  113308   1648   1240 S   9.6  0.1   0:04.78 file_test.sh                                                                                                                                                        
+20986 root      20   0  109292   9980   4000 S   1.0  0.5   0:13.91 file-guard     file-guard 
 ```
 #### 测试结果
 从上面可以看到：file-guard（监控脚本）cpu占用率平均在1%左右。
+
+
+### 写入报警日志
+#### 测试基准
+
+每5ms写入298字节到监控文件中，并且数据触发报警。
+#### 写入脚本
+```
+[root@localhost default]# cat file_test.sh 
+#!/bin/sh
+while true
+do
+        echo "errorsi0 /home/wwwroot/default/storyMarketing/app/Comps/Models/LuckDrawTrait.php(162): App\\Models\\LuckDraw->_addIntegralPrize(1, 446, Array)#0 /home/wwwroot/default/storyMarketing/app/Comps/Models/LuckDrawTrait.php(162): App\\Models\\LuckDraw->_addIntegralPrize(1, 446, Array)"\n >> /tmp/test.log
+        sleep 0.005
+done
+```
+
+#### 查看性能
+
+```
+top - 11:34:58 up 37 days,  1:58,  3 users,  load average: 0.13, 0.16, 0.11
+Tasks: 195 total,   1 running, 194 sleeping,   0 stopped,   0 zombie
+%Cpu(s):  7.3 us, 14.0 sy,  0.0 ni, 78.5 id,  0.0 wa,  0.0 hi,  0.2 si,  0.0 st
+KiB Mem :  1882408 total,   352896 free,   696304 used,   833208 buff/cache
+KiB Swap:  2097148 total,  1799836 free,   297312 used.   881920 avail Mem 
+
+  PID USER      PR  NI    VIRT    RES    SHR S  %CPU %MEM     TIME+ COMMAND                                                                                                                                                             
+21000 root      20   0  113308   1660   1240 S  10.6  0.1   0:04.94 file_test.sh                                                                                                                                                        
+20986 root      20   0  109292   9556   3920 S   3.6  0.5   0:02.13 file-guard  
+```
+
+#### 结果
+file-guard CPU占用率在3.6-4%左右浮动。
 
 ## 钉钉自定义机器人配置
 ![image](https://github.com/xuanwolei/file-guard/blob/master/doc/images/rebot_config.png)
@@ -132,3 +167,10 @@ KiB Swap:  2097148 total,  1782428 free,   314720 used.  1145480 avail Mem
 
 ## 通知示例
 ![image](https://github.com/xuanwolei/file-guard/blob/master/doc/images/notice_format.png)
+
+
+
+
+
+
+

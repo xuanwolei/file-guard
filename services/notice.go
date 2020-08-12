@@ -2,7 +2,7 @@
  * @Author: ybc
  * @Date: 2020-07-23 16:46:50
  * @LastEditors: ybc
- * @LastEditTime: 2020-08-11 19:32:08
+ * @LastEditTime: 2020-08-12 17:13:54
  * @Description: file content
  */
 
@@ -152,6 +152,5 @@ func (this *NoticeContent) parseKey(val string, isConnetText bool) string {
 	if isConnetText {
 		text = this.Line.Text[skipLength:length]
 	}
-	log.Info("text:", text)
 	return this.Guard.Section.Name() + val + text
 }

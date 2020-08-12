@@ -2,7 +2,7 @@
  * @Author: ybc
  * @Date: 2020-06-29 19:30:45
  * @LastEditors: ybc
- * @LastEditTime: 2020-08-11 20:13:53
+ * @LastEditTime: 2020-08-12 16:33:17
  * @Description: file content
  */
 
@@ -27,6 +27,7 @@ var NoticeChan = make(chan *NoticeContent)
 var Exit = make(chan int)
 var Wait sync.WaitGroup
 var FlagOnce sync.Once
+var GlobalLock sync.Mutex
 
 type Guard struct {
 	Section   *ini.Section
@@ -85,12 +86,15 @@ func init() {
 }
 
 func Reload(isReloadConfig bool) {
+	GlobalLock.Lock()
+	defer GlobalLock.Unlock()
 	log.Info("guard restart")
 	for _, guard := range Guards {
 		if len(guard.Tails) < 1 {
 			continue
 		}
-		for _, tail := range guard.Tails {
+		for k, tail := range guard.Tails {
+			log.Info("stop:", guard.Files[k].Path)
 			tail.Stop()
 		}
 	}
@@ -234,17 +238,17 @@ func (this *Guard) tail(path string) {
 	config := tail.Config{
 		ReOpen:    true,
 		Follow:    true,
-		Location:  &tail.SeekInfo{Offset: 0, Whence: 2}, // 从文件的哪个地方开始读
-		MustExist: false,                                // 文件不存在不报错
+		Location:  &tail.SeekInfo{Offset: 0, Whence: 2},
+		MustExist: true,
 		Poll:      true,
 		Logger:    logger,
 	}
 	t, err := tail.TailFile(path, config)
-	this.Tails = append(this.Tails, t)
 	if err != nil {
 		log.Error(err.Error())
 		return
 	}
+	this.Tails = append(this.Tails, t)
 	for line := range t.Lines {
 		this.handle(path, line)
 	}
