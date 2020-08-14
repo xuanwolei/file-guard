@@ -2,7 +2,7 @@
  * @Author: ybc
  * @Date: 2020-06-29 19:30:45
  * @LastEditors: ybc
- * @LastEditTime: 2020-08-12 16:33:17
+ * @LastEditTime: 2020-08-14 17:16:53
  * @Description: file content
  */
 
@@ -35,6 +35,7 @@ type Guard struct {
 	Files     []*FileInfo
 	MatchFunc FilterFunc
 	Tails     []*tail.Tail
+	sync.Mutex
 }
 
 type Config struct {
@@ -48,6 +49,10 @@ type Config struct {
 	LogCheckLength   string
 	LogSkipLength    string
 	LogRecursiveFind bool
+}
+
+type GlobalConfig struct {
+	TimingReload bool
 }
 
 type NoticeContent struct {
@@ -90,13 +95,7 @@ func Reload(isReloadConfig bool) {
 	defer GlobalLock.Unlock()
 	log.Info("guard restart")
 	for _, guard := range Guards {
-		if len(guard.Tails) < 1 {
-			continue
-		}
-		for k, tail := range guard.Tails {
-			log.Info("stop:", guard.Files[k].Path)
-			tail.Stop()
-		}
+		guard.Stop()
 	}
 	Guards = Guards[0:0]
 	if isReloadConfig {
@@ -129,7 +128,6 @@ func flagUsage() bool {
 	fmt.Fprintf(os.Stdout, `file-guard version: 1.0.0
 Usage: file-guard [-c filename] 
 Options:
-
 `)
 	flag.PrintDefaults()
 	return false
@@ -156,6 +154,7 @@ func LoadSections() {
 		}
 		hashConfig := section.KeysHash()
 		config := StringMapSetDefaultVal(hashConfig, defaultConfig)
+		fmt.Println("config:", config)
 		guard := &Guard{
 			Section: section,
 			Config: &Config{
@@ -225,6 +224,20 @@ func (this *Guard) Run() {
 	this.listen()
 }
 
+func (this *Guard) Stop() error {
+	if len(this.Tails) < 1 {
+		return nil
+	}
+	for _, tail := range this.Tails {
+		log.Info("stop:", tail.Filename)
+		if err := tail.Stop(); err != nil {
+			log.Error("stopFail:", err.Error())
+		}
+	}
+
+	return nil
+}
+
 func (this *Guard) listen() {
 	for _, f := range this.Files {
 		go this.tail(f.Path)
@@ -248,11 +261,18 @@ func (this *Guard) tail(path string) {
 		log.Error(err.Error())
 		return
 	}
+	this.Lock()
 	this.Tails = append(this.Tails, t)
-	for line := range t.Lines {
-		this.handle(path, line)
+	this.Unlock()
+	for {
+		select {
+		case line, ok := <-t.Lines:
+			if !ok {
+				return
+			}
+			this.handle(path, line)
+		}
 	}
-	return
 }
 
 func (this *Guard) handle(path string, line *tail.Line) {
@@ -284,11 +304,12 @@ func (this *Guard) pasePath(path string) string {
 }
 
 func StringMapSetDefaultVal(hash map[string]string, defaultHash map[string]string) map[string]string {
-	for k, v := range defaultHash {
+	for k, v := range DEFAULT_CONFIG {
 		if hash[k] != "" {
 			continue
-		} else if v == "" {
-			hash[k] = DEFAULT_CONFIG[k]
+		} else if defaultHash[k] != "" {
+			hash[k] = defaultHash[k]
+			continue
 		}
 		hash[k] = v
 	}
