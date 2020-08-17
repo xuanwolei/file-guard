@@ -3,7 +3,7 @@
 
 ### 应用场景
 - 错误日志监控，实时捕捉系统错误
-- 捕捉日志中关键业务数据，实时通知
+- 捕捉日志中关键数据，实时通知
 
 ### 特性
 - 多项目配置
@@ -172,16 +172,15 @@ file-guard CPU占用率在3.6-4%左右浮动。
 ## 注意事项
 - 目前通知方式只支持钉钉机器人
 - 暂未支持机器加签安全设置
-- **USR1**信号在Linux系统支持，windows环境不可用
+- **USR1**信号支持Linux系统，windows环境不可用
 - 建议使用**supervisord** 方式启动
 
 ## 钉钉自定义机器人配置
-![image](https://note.youdao.com/yws/public/resource/637e8ee93a9c3d09cafbea79599c657a/xmlnote/A283924347694E30BCEA087A9FAF1F6E/10664)
+![image](https://github.com/xuanwolei/file-guard/blob/master/doc/images/rebot_config.png)
 > 通知关键词“项目”
 
 ## 通知示例
-![image](https://note.youdao.com/yws/public/resource/637e8ee93a9c3d09cafbea79599c657a/xmlnote/582DE12344084FB48A5BC46DD0C02B62/10662)
-
+![image](https://github.com/xuanwolei/file-guard/blob/master/doc/images/notice_format.png)
 
 
 
