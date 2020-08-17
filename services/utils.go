@@ -2,8 +2,8 @@
  * @Author: ybc
  * @Date: 2020-07-22 15:51:25
  * @LastEditors: ybc
- * @LastEditTime: 2020-08-11 20:12:43
- * @Description: file content
+ * @LastEditTime: 2020-08-17 15:04:17
+ * @Description: 工具
  */
 
 package services
@@ -13,10 +13,9 @@ import (
 	"net"
 	"os"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
-
-	log "github.com/sirupsen/logrus"
 )
 
 type FileInfo struct {
@@ -46,7 +45,6 @@ func FindFiles(path string, file chan<- *FileInfo, isRecursive bool, isMatch boo
 			match = "^" + strings.Replace(name, "*", ".*", 1)
 		}
 	}
-	log.Info("match:" + match)
 	var n sync.WaitGroup
 	n.Add(1)
 	go findFiles(dir, file, &n, isRecursive, match)
@@ -74,7 +72,6 @@ func findFiles(path string, file chan<- *FileInfo, n *sync.WaitGroup, isRecursiv
 			}
 			continue
 		}
-		//正则匹配
 		if match != "" {
 			if is, _ := regexp.MatchString(match, ent.Name()); !is {
 				continue
@@ -124,4 +121,21 @@ func ParseFilePath(path string) (string, string) {
 	name := path[last+1:]
 
 	return dir, name
+}
+
+func InterfaceToInt(data interface{}) int {
+	var res int
+	switch v := data.(type) {
+	case string:
+		res, _ = strconv.Atoi(v)
+	case int64:
+		strInt64 := strconv.FormatInt(v, 10)
+		res, _ = strconv.Atoi(strInt64)
+	case int:
+		res = v
+	default:
+		res = 0
+	}
+
+	return res
 }

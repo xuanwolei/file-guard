@@ -2,8 +2,8 @@
  * @Author: ybc
  * @Date: 2020-07-22 15:13:29
  * @LastEditors: ybc
- * @LastEditTime: 2020-08-14 11:16:24
- * @Description: file content
+ * @LastEditTime: 2020-08-17 15:27:38
+ * @Description: 信号处理
  */
 
 package services
@@ -46,5 +46,4 @@ func handleSignals() {
 			}
 		}
 	}
-
 }

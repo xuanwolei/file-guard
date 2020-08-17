@@ -2,8 +2,8 @@
  * @Author: ybc
  * @Date: 2020-07-23 16:46:50
  * @LastEditors: ybc
- * @LastEditTime: 2020-08-12 17:13:54
- * @Description: file content
+ * @LastEditTime: 2020-08-17 14:56:02
+ * @Description: 通知
  */
 
 package services
@@ -100,10 +100,10 @@ func (this *NoticeContent) check() error {
 	)
 	rule := noticeLevel[this.Guard.Config.NoticeLevel]
 	if table.GetInt(limitNumKey) > rule.LimitNum {
-		return errors.New("达到通知上限:" + this.Line.Text)
+		return errors.New("noticeMaxLimit:" + this.Line.Text)
 	}
 	if table.GetInt(IntervalKey) > 0 {
-		return errors.New("在通知间隔内:" + this.Line.Text)
+		return errors.New("noticeInterval:" + this.Line.Text)
 	}
 
 	table.Incrby(limitNumKey, 1)
