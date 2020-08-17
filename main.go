@@ -2,7 +2,7 @@
  * @Author: ybc
  * @Date: 2020-06-29 19:26:05
  * @LastEditors: ybc
- * @LastEditTime: 2020-08-14 10:48:41
+ * @LastEditTime: 2020-08-17 15:52:50
  * @Description: file content
  */
 
@@ -13,6 +13,5 @@ import (
 )
 
 func main() {
-	services.StartHTTPDebuger()
 	services.Listen()
 }

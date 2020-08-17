@@ -2,7 +2,7 @@
  * @Author: ybc
  * @Date: 2020-06-29 19:30:45
  * @LastEditors: ybc
- * @LastEditTime: 2020-08-17 15:18:29
+ * @LastEditTime: 2020-08-17 16:10:47
  * @Description: file content
  */
 
@@ -238,8 +238,10 @@ func (this *Guard) Stop() error {
 			log.Error("stopFail:", err.Error())
 		}
 	}
+	this.Lock()
 	this.Tails = this.Tails[0:0]
 	this.Files = this.Files[0:0]
+	this.Unlock()
 	if this.isHandelTick() {
 		this.Ticker.Stop()
 	}
