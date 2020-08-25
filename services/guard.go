@@ -2,7 +2,7 @@
  * @Author: ybc
  * @Date: 2020-06-29 19:30:45
  * @LastEditors: ybc
- * @LastEditTime: 2020-08-17 16:10:47
+ * @LastEditTime: 2020-08-25 16:45:20
  * @Description: file content
  */
 
@@ -74,10 +74,12 @@ const (
 
 var (
 	DEFAULT_CONFIG map[string]string = map[string]string{
+		"log_file":             "",
 		"log_driver":           LOG_DRIVER_ERROR,
 		"match_preg":           "(?i)error",
 		"filter_preg":          "",
 		"notice_level":         "5",
+		"notice_token":         "",
 		"log_check_length":     "30",
 		"log_skip_length":      "0",
 		"notice_mobile":        "",

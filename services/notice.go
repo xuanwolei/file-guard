@@ -2,7 +2,7 @@
  * @Author: ybc
  * @Date: 2020-07-23 16:46:50
  * @LastEditors: ybc
- * @LastEditTime: 2020-08-17 14:56:02
+ * @LastEditTime: 2020-08-25 16:38:30
  * @Description: 通知
  */
 
@@ -143,12 +143,14 @@ func (this *NoticeContent) parseKey(val string, isConnetText bool) string {
 	length := len(this.Line.Text)
 	checkLength, _ := strconv.Atoi(this.Guard.Config.LogCheckLength)
 	skipLength, _ := strconv.Atoi(this.Guard.Config.LogSkipLength)
+	checkLength += skipLength
 	if length > checkLength {
 		length = checkLength
 	}
 	if length < skipLength {
 		skipLength = 0
 	}
+	log.Info("skipLength:", skipLength, ",length:", length)
 	if isConnetText {
 		text = this.Line.Text[skipLength:length]
 	}
