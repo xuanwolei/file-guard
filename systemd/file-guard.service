@@ -1,0 +1,14 @@
+[Unit]
+Description=file-guard file monitoring service
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/file-guard -c /etc/file-guard/config.ini
+Restart=on-failure
+RestartSec=5s
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target

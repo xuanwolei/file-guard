@@ -3,3 +3,4 @@
 /file-guard
 
 .gocache/
+release-dist/

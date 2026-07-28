@@ -12,6 +12,57 @@
 - 可控制上报频率
 - 钉钉自定义器机器人通知
 
+## Linux 安装与升级
+
+安装脚本会自动识别 `amd64` / `arm64` 架构，从 GitHub Release 下载对应二进制并校验 SHA256。首次安装会创建配置和 systemd 服务；已有配置文件不会被覆盖。
+
+### 安装最新版本
+
+```bash
+curl -fsSLO https://raw.githubusercontent.com/xuanwolei/file-guard/master/scripts/install.sh
+sudo bash install.sh
+```
+
+安装后启动并设置开机自启：
+
+```bash
+sudo systemctl enable --now file-guard
+```
+
+### 安装或升级指定版本
+
+```bash
+curl -fsSLO https://raw.githubusercontent.com/xuanwolei/file-guard/master/scripts/install.sh
+sudo bash install.sh --version 1.1.0
+```
+
+升级会保留现有配置；若服务安装前已运行，脚本会在替换二进制后恢复服务状态。
+
+### 卸载
+
+```bash
+sudo bash install.sh --uninstall
+```
+
+卸载会移除二进制与 systemd 服务，默认保留配置文件。需要同时删除配置时：
+
+```bash
+sudo bash install.sh --uninstall --purge
+```
+
+### 文件位置
+
+- 程序：`/usr/local/bin/file-guard`
+- 配置：`/etc/file-guard/config.ini`
+- systemd 服务：`/etc/systemd/system/file-guard.service`
+
+查看运行状态和日志：
+
+```bash
+sudo systemctl status file-guard
+sudo journalctl -u file-guard -f
+```
+
 ### 管理命令
 
 #### 启动
