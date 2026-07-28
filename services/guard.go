@@ -40,18 +40,26 @@ type Guard struct {
 }
 
 type Config struct {
-	LogFile            string
-	LogDriver          string
-	MatchPreg          string
-	FilterPreg         string
-	NoticeToken        string
-	NoticeMobile       string
-	NoticeLevel        string
-	LogCheckLength     string
-	LogSkipLength      string
-	LogRecursiveFind   bool
-	AutoReload         bool
-	AutoReloadInterval int
+	LogFile                     string
+	LogDriver                   string
+	MatchPreg                   string
+	FilterPreg                  string
+	NoticeToken                 string
+	NoticeMobile                string
+	NoticeLevel                 string
+	LogCheckLength              string
+	LogSkipLength               string
+	LogRecursiveFind            bool
+	AutoReload                  bool
+	AutoReloadInterval          int
+	MultilineEnabled            bool
+	MultilineContextBeforeLines int
+	MultilineContinuePreg       string
+	MultilineFlushTimeoutMS     int
+	MultilineMaxLines           int
+	MultilineMaxBytes           int
+	NoticeMaxBytes              int
+	NoticeReservedBytes         int
 }
 
 type GlobalConfig struct {
@@ -60,7 +68,7 @@ type GlobalConfig struct {
 
 type NoticeContent struct {
 	Path  string
-	Line  *tail.Line
+	Event LogEvent
 	Guard *Guard
 }
 
@@ -74,18 +82,26 @@ const (
 
 var (
 	DEFAULT_CONFIG map[string]string = map[string]string{
-		"log_file":             "",
-		"log_driver":           LOG_DRIVER_ERROR,
-		"match_preg":           "(?i)error",
-		"filter_preg":          "",
-		"notice_level":         "5",
-		"notice_token":         "",
-		"log_check_length":     "30",
-		"log_skip_length":      "0",
-		"notice_mobile":        "",
-		"log_recursive_find":   "",
-		"auto_reload":          "0",
-		"auto_reload_interval": "3600",
+		"log_file":                       "",
+		"log_driver":                     LOG_DRIVER_ERROR,
+		"match_preg":                     "(?i)error",
+		"filter_preg":                    "",
+		"notice_level":                   "5",
+		"notice_token":                   "",
+		"log_check_length":               "30",
+		"log_skip_length":                "0",
+		"notice_mobile":                  "",
+		"log_recursive_find":             "",
+		"auto_reload":                    "0",
+		"auto_reload_interval":           "3600",
+		"multiline_enabled":              "0",
+		"multiline_context_before_lines": "20",
+		"multiline_continue_preg":        "^(\\s+at\\s|\\s*Caused by:|\\s*#\\d+|\\s*goroutine\\s|\\s+File\\s|\\s*Traceback|\\s+)",
+		"multiline_flush_timeout_ms":     "1000",
+		"multiline_max_lines":            "120",
+		"multiline_max_bytes":            "65536",
+		"notice_max_bytes":               "12000",
+		"notice_reserved_bytes":          "1024",
 	}
 	Guards     []*Guard
 	ConfigFile *string = flag.String("c", "", "set ini file path")
@@ -163,18 +179,26 @@ func LoadSections() {
 		guard := &Guard{
 			Section: section,
 			Config: &Config{
-				LogFile:            config["log_file"],
-				LogDriver:          config["log_driver"],
-				MatchPreg:          config["match_preg"],
-				FilterPreg:         config["filter_preg"],
-				NoticeToken:        config["notice_token"],
-				NoticeMobile:       config["notice_mobile"],
-				NoticeLevel:        config["notice_level"],
-				LogCheckLength:     config["log_check_length"],
-				LogSkipLength:      config["log_skip_length"],
-				LogRecursiveFind:   config["log_recursive_find"] == "1",
-				AutoReload:         config["auto_reload"] == "1",
-				AutoReloadInterval: InterfaceToInt(config["auto_reload_interval"]),
+				LogFile:                     config["log_file"],
+				LogDriver:                   config["log_driver"],
+				MatchPreg:                   config["match_preg"],
+				FilterPreg:                  config["filter_preg"],
+				NoticeToken:                 config["notice_token"],
+				NoticeMobile:                config["notice_mobile"],
+				NoticeLevel:                 config["notice_level"],
+				LogCheckLength:              config["log_check_length"],
+				LogSkipLength:               config["log_skip_length"],
+				LogRecursiveFind:            config["log_recursive_find"] == "1",
+				AutoReload:                  config["auto_reload"] == "1",
+				AutoReloadInterval:          InterfaceToInt(config["auto_reload_interval"]),
+				MultilineEnabled:            config["multiline_enabled"] == "1",
+				MultilineContextBeforeLines: InterfaceToInt(config["multiline_context_before_lines"]),
+				MultilineContinuePreg:       config["multiline_continue_preg"],
+				MultilineFlushTimeoutMS:     InterfaceToInt(config["multiline_flush_timeout_ms"]),
+				MultilineMaxLines:           InterfaceToInt(config["multiline_max_lines"]),
+				MultilineMaxBytes:           InterfaceToInt(config["multiline_max_bytes"]),
+				NoticeMaxBytes:              InterfaceToInt(config["notice_max_bytes"]),
+				NoticeReservedBytes:         InterfaceToInt(config["notice_reserved_bytes"]),
 			},
 			MatchFunc: MatchString,
 		}
@@ -303,36 +327,64 @@ func (this *Guard) tail(path string) {
 	this.Lock()
 	this.Tails = append(this.Tails, t)
 	this.Unlock()
+	assembler, err := NewMultilineAssembler(MultilineOptions{
+		Enabled:            this.Config.MultilineEnabled,
+		ContextBeforeLines: this.Config.MultilineContextBeforeLines,
+		ContinuePattern:    this.Config.MultilineContinuePreg,
+		FlushTimeout:       time.Duration(this.Config.MultilineFlushTimeoutMS) * time.Millisecond,
+		MaxLines:           this.Config.MultilineMaxLines,
+		MaxBytes:           this.Config.MultilineMaxBytes,
+	}, func(text string) bool {
+		return this.MatchFunc(this.Config.MatchPreg, text)
+	})
+	if err != nil {
+		log.Error("invalid multiline_continue_preg:", err.Error())
+		return
+	}
+	flushTicker := time.NewTicker(100 * time.Millisecond)
+	defer flushTicker.Stop()
+	defer func() {
+		if event := assembler.Flush(); event != nil {
+			this.handle(path, *event)
+		}
+	}()
 	for {
 		select {
 		case line, ok := <-t.Lines:
 			if !ok {
 				return
 			}
-			this.handle(path, line)
+			events := assembler.Append(LogEvent{Time: line.Time, Text: line.Text})
+			for _, event := range events {
+				this.handle(path, event)
+			}
+		case now := <-flushTicker.C:
+			if event := assembler.FlushExpired(now); event != nil {
+				this.handle(path, *event)
+			}
 		}
 	}
 }
 
-func (this *Guard) handle(path string, line *tail.Line) {
-	if !this.MatchFunc(this.Config.MatchPreg, line.Text) {
-		log.Debug("unmatched", line.Text)
+func (this *Guard) handle(path string, event LogEvent) {
+	if !this.MatchFunc(this.Config.MatchPreg, event.Text) {
+		log.Debug("unmatched", event.Text)
 		return
 	}
-	if this.Config.FilterPreg != "" && this.MatchFunc(this.Config.FilterPreg, line.Text) {
-		log.Debug("filter", line.Text)
+	if this.Config.FilterPreg != "" && this.MatchFunc(this.Config.FilterPreg, event.Text) {
+		log.Debug("filter", event.Text)
 		return
 	}
 	//send notice
 	NoticeChan <- &NoticeContent{
-		Line:  line,
+		Event: event,
 		Guard: this,
 		Path:  path,
 	}
 	return
 }
 
-//解析文件，兼容*通配符
+// 解析文件，兼容*通配符
 func (this *Guard) pasePath(path string) string {
 
 	dir, name := ParseFilePath(path)

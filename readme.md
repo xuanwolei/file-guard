@@ -75,6 +75,18 @@ log_skip_length = 21
 auto_reload = 1
 ;定时重载间隔（秒）
 auto_reload_interval = 10
+
+; 多行堆栈：命中错误后收集前置上下文和符合规则的后续栈帧
+; multiline_enabled = 1
+; multiline_context_before_lines = 20
+; multiline_continue_preg = "^(\\s+at\\s|\\s*Caused by:|\\s*#\\d+|\\s*goroutine\\s|\\s+File\\s|\\s*Traceback|\\s+)"
+; multiline_flush_timeout_ms = 1000
+; multiline_max_lines = 120
+; multiline_max_bytes = 65536
+
+; 钉钉单条 Markdown text 的 UTF-8 内容字节控制（本项目策略值）
+; notice_max_bytes = 12000
+; notice_reserved_bytes = 1024
 ```
 #### 配置说明
 - 所有配置项都支持全局/项目配置
@@ -181,8 +193,6 @@ file-guard CPU占用率在3.6-4%左右浮动。
 
 ## 通知示例
 ![image](https://github.com/xuanwolei/file-guard/blob/master/doc/images/notice_format.png)
-
-
 
 
 

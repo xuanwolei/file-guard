@@ -28,7 +28,7 @@ func init() {
 		return
 	}
 	sig = make(chan os.Signal)
-	notifySignals = append(notifySignals, syscall.SIGTERM, syscall.SIGUSR1)
+	notifySignals = append(notifySignals, syscall.SIGTERM, SIGUSR1)
 	signal.Notify(sig, notifySignals...)
 	go handleSignals()
 }
@@ -41,7 +41,7 @@ func handleSignals() {
 			switch capturedSig {
 			case syscall.SIGTERM:
 				close(Exit)
-			case syscall.SIGUSR1:
+			case SIGUSR1:
 				Reload(true)
 			}
 		}
