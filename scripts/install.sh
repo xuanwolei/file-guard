@@ -173,37 +173,96 @@ download_to() {
   fi
 }
 
-# 仅在连接、超时或服务端错误等下载失败时切换候选源。
-# 调用方负责内容校验；校验失败绝不能回退到下一个源。
-download_github_to() {
-  local github_url="$1"
-  local output="$2"
-  local candidate
-  local -a candidates=()
+candidate_url() {
+  local proxy="$1"
+  local github_url="$2"
+  if [[ -n "${proxy}" ]]; then
+    printf '%s%s\n' "${proxy}" "${github_url}"
+  else
+    printf '%s\n' "${github_url}"
+  fi
+}
 
-  for candidate in "${PROXIES[@]}"; do
-    candidates+=("${candidate}${github_url}")
-  done
-  candidates+=("${github_url}")
+fetch_latest_version() {
+  local github_url="https://api.github.com/repos/${REPOSITORY}/releases/latest"
+  local proxy candidate version
 
-  for candidate in "${candidates[@]}"; do
-    rm -f "${output}"
-    if download_to "${candidate}" "${output}"; then
+  for proxy in "${PROXIES[@]}" ""; do
+    candidate="$(candidate_url "${proxy}" "${github_url}")"
+    rm -f "${LATEST_FILE}"
+    if ! download_to "${candidate}" "${LATEST_FILE}"; then
+      echo "下载失败，尝试下一个来源：${candidate}" >&2
+      continue
+    fi
+
+    version="$(sed -n 's/.*"tag_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "${LATEST_FILE}" \
+      | head -n 1)"
+    if [[ -n "${version}" ]]; then
+      printf '%s\n' "${version}"
       return 0
     fi
-    echo "下载失败，尝试下一个来源：${candidate}" >&2
+    echo "最新版本响应无效，尝试下一个来源：${candidate}" >&2
   done
-  fail "无法下载：${github_url}"
+  fail "无法获取最新 Release 版本，请使用 --version 指定版本"
+}
+
+extract_expected_hash() {
+  local sums_file="$1"
+  local asset="$2"
+  awk -v asset="${asset}" '
+    $2 == asset && $1 ~ /^[[:xdigit:]]+$/ && length($1) == 64 {
+      count++
+      hash = tolower($1)
+    }
+    END {
+      if (count == 1) {
+        print hash
+      } else {
+        exit 1
+      }
+    }
+  ' "${sums_file}"
+}
+
+# 二进制和校验清单必须来自同一个候选来源。代理返回 HTTP 200 错误页时，
+# 校验清单格式无效会尝试下一个来源；二进制哈希不匹配则立即终止。
+download_release() {
+  local github_base_url="$1"
+  local asset="$2"
+  local asset_file="$3"
+  local sums_file="$4"
+  local proxy candidate expected_hash actual_hash
+
+  for proxy in "${PROXIES[@]}" ""; do
+    candidate="$(candidate_url "${proxy}" "${github_base_url}")"
+    rm -f "${asset_file}" "${sums_file}"
+    if ! download_to "${candidate}/SHA256SUMS" "${sums_file}"; then
+      echo "下载失败，尝试下一个来源：${candidate}" >&2
+      continue
+    fi
+
+    if ! expected_hash="$(extract_expected_hash "${sums_file}" "${asset}")"; then
+      echo "校验清单无效，尝试下一个来源：${candidate}" >&2
+      continue
+    fi
+
+    if ! download_to "${candidate}/${asset}" "${asset_file}"; then
+      echo "下载失败，尝试下一个来源：${candidate}" >&2
+      continue
+    fi
+
+    actual_hash="$(sha256sum "${asset_file}" | awk '{print $1}')"
+    [[ "${expected_hash}" == "${actual_hash}" ]] || fail "二进制 SHA256 校验失败（来源：${candidate}）"
+    return 0
+  done
+  fail "无法下载有效的 Release 文件：${github_base_url}"
 }
 
 configure_proxies
 
 if [[ -z "${VERSION}" ]]; then
   LATEST_FILE="$(mktemp)"
-  download_github_to "https://api.github.com/repos/${REPOSITORY}/releases/latest" "${LATEST_FILE}"
-  VERSION="$(sed -n 's/.*"tag_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "${LATEST_FILE}" \
-    | head -n 1)"
-  [[ -n "${VERSION}" ]] || fail "无法获取最新 Release 版本，请使用 --version 指定版本"
+  VERSION="$(fetch_latest_version)"
 fi
 
 ASSET="file-guard-linux-${ARCH}"
@@ -212,13 +271,7 @@ TEMP_DIR="$(mktemp -d)"
 trap 'rm -f "${LATEST_FILE:-}"; rm -rf "${TEMP_DIR}"' EXIT
 
 echo "下载 file-guard ${VERSION} (${ARCH})..."
-download_github_to "${BASE_URL}/${ASSET}" "${TEMP_DIR}/${ASSET}"
-download_github_to "${BASE_URL}/SHA256SUMS" "${TEMP_DIR}/SHA256SUMS"
-
-expected_hash="$(awk -v asset="${ASSET}" '$2 == asset {print $1}' "${TEMP_DIR}/SHA256SUMS")"
-[[ -n "${expected_hash}" ]] || fail "SHA256SUMS 中未找到 ${ASSET}"
-actual_hash="$(sha256sum "${TEMP_DIR}/${ASSET}" | awk '{print $1}')"
-[[ "${expected_hash}" == "${actual_hash}" ]] || fail "二进制 SHA256 校验失败"
+download_release "${BASE_URL}" "${ASSET}" "${TEMP_DIR}/${ASSET}" "${TEMP_DIR}/SHA256SUMS"
 
 was_active=0
 if systemctl is-active --quiet "${SERVICE_NAME}"; then
