@@ -12,15 +12,25 @@ VERSION=""
 START_AFTER_INSTALL=0
 UNINSTALL=0
 PURGE=0
+# 未指定代理时使用的公共 GitHub 中转站。所有中转失败后会直连 GitHub。
+DEFAULT_PROXIES=(
+  "https://gh-proxy.com/"
+  "https://ghproxy.net/"
+  "https://ghfast.top/"
+)
+CUSTOM_PROXIES=()
+PROXIES=()
 
 usage() {
   cat <<'EOF'
 用法：
-  sudo bash install.sh [--version <版本>] [--start]
+  sudo bash install.sh [--version <版本>] [--proxy <中转前缀>] [--start]
   sudo bash install.sh --uninstall [--purge]
 
 选项：
   --version <版本>  安装指定 Release 标签，例如 1.1.0；默认安装最新版本。
+  --proxy <前缀>    GitHub 中转前缀，可重复指定；例如 https://gh-proxy.com/
+                    也可通过 FILE_GUARD_PROXYES 以英文逗号或空格分隔配置多个前缀。
   --start           安装完成后立即启动服务。
   --uninstall       删除二进制文件和 systemd 服务。
   --purge           仅与 --uninstall 一起使用，同时删除 /etc/file-guard。
@@ -42,6 +52,11 @@ while [[ $# -gt 0 ]]; do
     --version)
       [[ $# -ge 2 ]] || fail "--version 需要版本号"
       VERSION="$2"
+      shift 2
+      ;;
+    --proxy)
+      [[ $# -ge 2 ]] || fail "--proxy 需要中转前缀"
+      CUSTOM_PROXIES+=("$2")
       shift 2
       ;;
     --start)
@@ -104,20 +119,89 @@ case "$(uname -m)" in
 esac
 
 if command -v curl >/dev/null 2>&1; then
-  DOWNLOAD=(curl -fsSL --retry 3 --retry-delay 1)
+  DOWNLOAD_TOOL="curl"
 elif command -v wget >/dev/null 2>&1; then
-  DOWNLOAD=(wget -qO-)
+  DOWNLOAD_TOOL="wget"
 else
   fail "需要 curl 或 wget 用于下载"
 fi
 
-download() {
-  "${DOWNLOAD[@]}" "$1"
+# 将代理前缀规范为可直接拼接原始 GitHub URL 的形式。
+normalize_proxy() {
+  local proxy="$1"
+  [[ "${proxy}" =~ ^https?:// ]] || fail "代理地址必须以 http:// 或 https:// 开头：${proxy}"
+  [[ "${proxy}" == */ ]] || proxy="${proxy}/"
+  printf '%s\n' "${proxy}"
 }
 
+add_proxy() {
+  local proxy
+  proxy="$(normalize_proxy "$1")"
+  local existing
+  for existing in "${PROXIES[@]}"; do
+    [[ "${existing}" == "${proxy}" ]] && return
+  done
+  PROXIES+=("${proxy}")
+}
+
+configure_proxies() {
+  local -a configured=()
+  local proxy
+  if [[ "${#CUSTOM_PROXIES[@]}" -gt 0 ]]; then
+    configured=("${CUSTOM_PROXIES[@]}")
+  elif [[ -n "${FILE_GUARD_PROXYES:-}" ]]; then
+    # 同时接受 README 中使用的逗号分隔形式和空格分隔形式。
+    local proxy_list="${FILE_GUARD_PROXYES//,/ }"
+    read -r -a configured <<< "${proxy_list}"
+  else
+    configured=("${DEFAULT_PROXIES[@]}")
+  fi
+
+  for proxy in "${configured[@]}"; do
+    add_proxy "${proxy}"
+  done
+}
+
+download_to() {
+  local url="$1"
+  local output="$2"
+  if [[ "${DOWNLOAD_TOOL}" == "curl" ]]; then
+    curl -fsSL --connect-timeout 10 --max-time 180 --retry 3 --retry-delay 1 \
+      -o "${output}" "${url}"
+  else
+    wget -q --timeout=10 --tries=3 -O "${output}" "${url}"
+  fi
+}
+
+# 仅在连接、超时或服务端错误等下载失败时切换候选源。
+# 调用方负责内容校验；校验失败绝不能回退到下一个源。
+download_github_to() {
+  local github_url="$1"
+  local output="$2"
+  local candidate
+  local -a candidates=()
+
+  for candidate in "${PROXIES[@]}"; do
+    candidates+=("${candidate}${github_url}")
+  done
+  candidates+=("${github_url}")
+
+  for candidate in "${candidates[@]}"; do
+    rm -f "${output}"
+    if download_to "${candidate}" "${output}"; then
+      return 0
+    fi
+    echo "下载失败，尝试下一个来源：${candidate}" >&2
+  done
+  fail "无法下载：${github_url}"
+}
+
+configure_proxies
+
 if [[ -z "${VERSION}" ]]; then
-  VERSION="$(download "https://api.github.com/repos/${REPOSITORY}/releases/latest" \
-    | sed -n 's/.*"tag_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' \
+  LATEST_FILE="$(mktemp)"
+  download_github_to "https://api.github.com/repos/${REPOSITORY}/releases/latest" "${LATEST_FILE}"
+  VERSION="$(sed -n 's/.*"tag_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "${LATEST_FILE}" \
     | head -n 1)"
   [[ -n "${VERSION}" ]] || fail "无法获取最新 Release 版本，请使用 --version 指定版本"
 fi
@@ -125,11 +209,11 @@ fi
 ASSET="file-guard-linux-${ARCH}"
 BASE_URL="https://github.com/${REPOSITORY}/releases/download/${VERSION}"
 TEMP_DIR="$(mktemp -d)"
-trap 'rm -rf "${TEMP_DIR}"' EXIT
+trap 'rm -f "${LATEST_FILE:-}"; rm -rf "${TEMP_DIR}"' EXIT
 
 echo "下载 file-guard ${VERSION} (${ARCH})..."
-download "${BASE_URL}/${ASSET}" > "${TEMP_DIR}/${ASSET}"
-download "${BASE_URL}/SHA256SUMS" > "${TEMP_DIR}/SHA256SUMS"
+download_github_to "${BASE_URL}/${ASSET}" "${TEMP_DIR}/${ASSET}"
+download_github_to "${BASE_URL}/SHA256SUMS" "${TEMP_DIR}/SHA256SUMS"
 
 expected_hash="$(awk -v asset="${ASSET}" '$2 == asset {print $1}' "${TEMP_DIR}/SHA256SUMS")"
 [[ -n "${expected_hash}" ]] || fail "SHA256SUMS 中未找到 ${ASSET}"

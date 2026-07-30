@@ -14,9 +14,46 @@
 
 ## Linux 安装与升级
 
-安装脚本会自动识别 `amd64` / `arm64` 架构，从 GitHub Release 下载对应二进制并校验 SHA256。首次安装会创建配置和 systemd 服务；已有配置文件不会被覆盖。
+安装脚本会自动识别 `amd64` / `arm64` 架构，从 GitHub Release
+下载对应二进制并校验 SHA256。首次安装会创建配置和 systemd
+服务；已有配置文件不会被覆盖。
 
-### 安装最新版本
+国内网络环境访问 GitHub 不稳定时，可通过 `--proxy` 指定 GitHub
+代理前缀。公共代理由第三方维护，可用性与服务策略可能变化，建议在
+部署前确认其可访问，并保留直连方式作为备用。
+
+### 国内网络推荐安装
+
+以下示例通过 GitHub 代理下载安装脚本和 Release 文件：
+
+```bash
+curl -fsSL \
+  https://gh-proxy.com/https://raw.githubusercontent.com/xuanwolei/file-guard/master/scripts/install.sh \
+  -o install.sh
+sudo bash install.sh --proxy https://gh-proxy.com/
+```
+
+若单个代理不可用，可通过 `FILE_GUARD_PROXYES` 配置多个代理前缀，
+使用英文逗号分隔。脚本会依次尝试这些代理，并在最后尝试 GitHub
+直连：
+
+```bash
+curl -fsSL \
+  https://gh-proxy.com/https://raw.githubusercontent.com/xuanwolei/file-guard/master/scripts/install.sh \
+  -o install.sh
+sudo FILE_GUARD_PROXYES="https://gh-proxy.com/,https://ghproxy.net/" \
+  bash install.sh
+```
+
+`--proxy` 适合临时指定代理，可重复传入以提供多个候选代理：
+
+```bash
+sudo bash install.sh \
+  --proxy https://gh-proxy.com/ \
+  --proxy https://ghproxy.net/
+```
+
+### 安装最新版本（GitHub 直连备用）
 
 ```bash
 curl -fsSLO https://raw.githubusercontent.com/xuanwolei/file-guard/master/scripts/install.sh
@@ -30,6 +67,17 @@ sudo systemctl enable --now file-guard
 ```
 
 ### 安装或升级指定版本
+
+国内网络下指定版本：
+
+```bash
+curl -fsSL \
+  https://gh-proxy.com/https://raw.githubusercontent.com/xuanwolei/file-guard/master/scripts/install.sh \
+  -o install.sh
+sudo bash install.sh --version 1.1.0 --proxy https://gh-proxy.com/
+```
+
+GitHub 可直连时：
 
 ```bash
 curl -fsSLO https://raw.githubusercontent.com/xuanwolei/file-guard/master/scripts/install.sh
