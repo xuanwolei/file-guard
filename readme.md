@@ -86,6 +86,45 @@ sudo bash install.sh --version 1.1.0
 
 升级会保留现有配置；若服务安装前已运行，脚本会在替换二进制后恢复服务状态。
 
+### 离线/本地二进制安装
+
+若目标服务器无法访问 GitHub，可在可联网的设备上准备
+`scripts/install-local.sh` 和目标架构对应的二进制，再上传到服务器。
+
+根据服务器架构选择文件：
+
+- `x86_64` / `amd64`：`file-guard-linux-amd64`
+- `aarch64` / `arm64`：`file-guard-linux-arm64`
+
+以 `amd64` 服务器为例，通过 `scp` 上传安装脚本和二进制：
+
+```bash
+scp scripts/install-local.sh user@server:/tmp/install-local.sh
+scp file-guard-linux-amd64 user@server:/tmp/file-guard-linux-amd64
+```
+
+登录服务器后执行安装，`--start` 会立即启动服务并设置开机自启：
+
+```bash
+cd /tmp
+sudo bash install-local.sh ./file-guard-linux-amd64 --start
+```
+
+升级时上传新的二进制并重复执行上述命令即可，
+现有配置不会被覆盖。
+
+卸载程序和 systemd 服务（默认保留配置）：
+
+```bash
+sudo bash install-local.sh --uninstall
+```
+
+同时删除配置：
+
+```bash
+sudo bash install-local.sh --uninstall --purge
+```
+
 ### 卸载
 
 ```bash

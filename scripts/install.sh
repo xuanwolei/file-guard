@@ -209,19 +209,20 @@ fetch_latest_version() {
 extract_expected_hash() {
   local sums_file="$1"
   local asset="$2"
-  awk -v asset="${asset}" '
-    $2 == asset && $1 ~ /^[[:xdigit:]]+$/ && length($1) == 64 {
-      count++
-      hash = tolower($1)
-    }
-    END {
-      if (count == 1) {
-        print hash
-      } else {
-        exit 1
-      }
-    }
-  ' "${sums_file}"
+  local line hash name extra matched_hash="" count=0
+
+  # 不依赖不同 awk 实现对字符类的兼容性，直接用 Bash 解析校验清单。
+  while IFS= read -r line || [[ -n "${line}" ]]; do
+    line="${line%$'\r'}"
+    read -r hash name extra <<< "${line}"
+    [[ "${name:-}" == "${asset}" && -z "${extra:-}" ]] || continue
+    [[ "${hash:-}" =~ ^[0-9a-fA-F]{64}$ ]] || return 1
+    matched_hash="${hash,,}"
+    count=$((count + 1))
+  done < "${sums_file}"
+
+  [[ "${count}" -eq 1 ]] || return 1
+  printf '%s\n' "${matched_hash}"
 }
 
 # 二进制和校验清单必须来自同一个候选来源。代理返回 HTTP 200 错误页时，
