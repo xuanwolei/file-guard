@@ -285,13 +285,76 @@ install -m 0755 "${TEMP_DIR}/${ASSET}" "${INSTALL_DIR}/file-guard"
 
 if [[ ! -f "${CONFIG_FILE}" ]]; then
   cat > "${CONFIG_FILE}" <<'EOF'
-; file-guard 配置。请创建至少一个项目配置后再启动服务。
+; file-guard 配置模板
+; 全局配置写在项目段之前，项目段配置优先于全局配置。
+; 至少保留一个项目段，并填写有效的 log_file 后再启动服务。
+
+; -------------------- 全局配置 --------------------
+; 通知级别：1-8，数值越小通知越频繁。
 notice_level = 3
 
+; 钉钉机器人配置。多个项目共用机器人时可填写在这里。
+; notice_token =
+; notice_mobile =
+
+; 日志驱动类型，当前通常使用 error。
+; log_driver = error
+
+; 是否递归查找目录：1 开启，0 关闭。
+; log_recursive_find = 0
+
+; 用于相同日志限流标识的截取长度和跳过字节数。
+; log_check_length = 30
+; log_skip_length = 0
+
+; 命中日志后是否定时扫描并重载文件：1 开启，0 关闭。
+; auto_reload = 0
+; auto_reload_interval = 3600
+
+; 多行堆栈采集：命中后收集前置上下文和后续堆栈行。
+; multiline_enabled = 0
+; multiline_context_before_lines = 20
+; multiline_continue_preg = "^(\\s+at\\s|\\s*Caused by:|\\s*#\\d+|\\s*goroutine\\s|\\s+File\\s|\\s*Traceback|\\s+)"
+; multiline_flush_timeout_ms = 1000
+; multiline_max_lines = 120
+; multiline_max_bytes = 65536
+
+; 钉钉 Markdown 通知的 UTF-8 字节限制和元数据预留空间。
+; notice_max_bytes = 12000
+; notice_reserved_bytes = 1024
+
+; -------------------- 项目配置 --------------------
+; 项目配置会覆盖同名全局配置。
 [example]
+
+; 监控文件路径，支持 * 匹配。请按实际日志路径修改。
 log_file = /var/log/example/*.log
-match_preg = "(?i)error"
+
+; 正则匹配规则，匹配后发送通知。
+match_preg = "(?i)(error|exception|fatal|panic)"
+
+; 过滤规则：匹配到的内容不会通知；无需过滤时保持为空。
+filter_preg =
+
+; 项目独立的钉钉机器人 token；为空时继承全局配置。
 notice_token =
+
+; 以下配置可按项目需要覆盖全局配置：
+; notice_level = 3
+; notice_mobile =
+; log_recursive_find = 0
+; log_check_length = 30
+; log_skip_length = 0
+; auto_reload = 0
+; auto_reload_interval = 3600
+; multiline_enabled = 0
+; multiline_context_before_lines = 20
+; multiline_continue_preg = "^(\\s+at\\s|\\s*Caused by:|\\s*#\\d+|\\s*goroutine\\s|\\s+File\\s|\\s*Traceback|\\s+)"
+; multiline_flush_timeout_ms = 1000
+; multiline_max_lines = 120
+; multiline_max_bytes = 65536
+; notice_max_bytes = 12000
+; notice_reserved_bytes = 1024
 EOF
   chmod 0640 "${CONFIG_FILE}"
   echo "已创建配置模板：${CONFIG_FILE}"
